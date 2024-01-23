@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* Additional styles for the drop zone */
+        #dropZone {
+            width: 200px;
+            height: 200px;
+            border: 2px dashed #ccc;
+            text-align: center;
+            padding: 10px;
+            margin: 20px auto;
+            cursor: pointer;
+            position: relative;
+        }
+
+        #dropZone:hover {
+            border-color: #555;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        #fileNameDisplay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            color: #333;
+        }
+
+        /* Additional style for the label */
+        #fileInputLabel {
+            display: block;
+            margin: 10px 0;
+            cursor: pointer;
+            color: #333;
+        }
+    </style>
+    <title>Flask Web App</title>
+</head>
+<body>
+    <h1>Hello, Flask!</h1>
+    <p>This is a simple Flask web application using templates.</p>
+
+    <!-- Square Drop Zone -->
+    <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" onsubmit="return validateForm()">
+        <label for="fileInput" id="fileInputLabel">Click or drop CSV file here</label>
+        <div id="dropZone" onclick="openFileExplorer()" ondrop="handleDrop(event)" ondragover="handleDragOver(event)">
+            <input type="file" name="csvFile" id="fileInput" accept=".csv" onchange="handleFileSelect(event)">
+            <div id="fileNameDisplay">Selected file: <span id="selectedFileName"></span></div>
+        </div>
+        <button type="submit">Upload</button>
+    </form>
+
+    <script>
+        function openFileExplorer() {
+            document.getElementById('fileInput').click();
+        }
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            if (files.length > 0) {
+                // Process the selected file
+                const selectedFileName = files[0].name;
+
+                // Display the selected file name
+                document.getElementById('selectedFileName').innerText = selectedFileName;
+                document.getElementById('fileNameDisplay').style.display = 'block';
+            }
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                // Process the dropped file
+                const droppedFileName = files[0].name;
+
+                // Display the dropped file name
+                document.getElementById('selectedFileName').innerText = droppedFileName;
+                document.getElementById('fileNameDisplay').style.display = 'block';
+            }
+        }
+
+        function validateForm() {
+            // You can add any additional form validation logic here
+            return true; // Return false to prevent the form from submitting
+        }
+    </script>
+</body>
+</html>
