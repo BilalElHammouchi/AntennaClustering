@@ -6,6 +6,7 @@ from threading import Thread
 from sklearn.manifold import TSNE
 import streamlit as st
 import plotly.express as px
+from streamlit.runtime.scriptrunner import add_script_run_ctx as add_report_ctx
 
 class AntCluster:
     def __init__(self, n_ants, n_clusters, data, max_iter=100, alpha=1.0, beta=2.0, rho=0.5, threads=4):
@@ -17,6 +18,7 @@ class AntCluster:
         self.beta = beta
         self.rho = rho
         self.num_threads = threads
+        self.stop_counter = 0
         self.workers = {}
         self.pheromone_matrix = np.ones((len(data), n_clusters))
         self.best_solution = [0 for x in range(len(data))]
@@ -68,37 +70,53 @@ class AntCluster:
         for t in range(self.num_threads):
             thread = Thread(target=self.costly_function, args=(self.max_iter//self.num_threads,transformed_tsne))
             threads.append(thread)
+            add_report_ctx(thread)
             thread.start()
         for t in threads:
             t.join()
+        self.placeholder.empty()
         return self.best_solution, self.best_cost
-        #return self.costly_function()
+
+
+    def draw_plot(self, transformed_tsne):
+        c = []
+        for i in range(len(self.data)):
+            for j in range(len(self.colors)):
+                if self.best_solution[i] == j:
+                    c.append(f"class {self.best_solution[i]}")
+                    break
+        transformed_tsne['color'] = c
+        self.color_map = {f"class {i}": self.colors[i] for i in range(self.n_clusters)}
+        self.fig = px.scatter(transformed_tsne, x="x", y="y", color="color", color_discrete_map=self.color_map)
+        self.fig.update_layout(margin=dict(l=20, r=20, t=30, b=0),)
+        with self.placeholder.container():
+            st.plotly_chart(self.fig, use_container_width=True)
+
+
+    def launch_ants(self, ants, solutions, costs):
+        for ant in range(ants):
+            solution = self.explore()
+            cost = self.calculate_cost(solution)
+            solutions.append(solution)
+            costs.append(cost)
+            if cost < self.best_cost:
+                self.best_solution = solution
+                self.best_cost = cost
 
 
     def costly_function(self, n, transformed_tsne, e=None):
         for iteration in tqdm(range(n)):
-            c = []
-            for i in range(len(self.data)):
-                for j in range(len(self.colors)):
-                    if self.best_solution[i] == j:
-                        c.append(f"class {self.best_solution[i]}")
-                        break
-            transformed_tsne['color'] = c
-            self.color_map = {f"class {i}": self.colors[i] for i in range(self.n_clusters)}
-            self.fig = px.scatter(transformed_tsne, x="x", y="y", color="color", color_discrete_map=self.color_map)
-            self.fig.update_layout(margin=dict(l=20, r=20, t=30, b=0),)
-            with self.placeholder.container():
-                st.plotly_chart(self.fig, use_container_width=True)
+            temp_cost = self.best_cost
+            self.draw_plot(transformed_tsne)
             solutions = []
             costs = []
-            for ant in range(self.n_ants):
-                solution = self.explore()
-                cost = self.calculate_cost(solution)
-                solutions.append(solution)
-                costs.append(cost)
-                if cost < self.best_cost:
-                    self.best_solution = solution
-                    self.best_cost = cost
+            self.launch_threads(self.launch_ants, self.n_ants//self.num_threads,solutions, costs)
+            if temp_cost == self.best_cost:
+                self.stop_counter += 1
+                if self.stop_counter == 6:
+                    break
+            else:
+                self.stop_counter = 0
 
             self.update_pheromone(solutions, costs)
 
@@ -108,12 +126,27 @@ class AntCluster:
     def explore(self):
         # Exploration phase
         clusters = self.initialize_clusters()
-        for ant in range(self.n_ants):
+        self.launch_threads(self.explore_parallel, clusters, self.n_ants//self.num_threads)
+        return clusters
+        
+    
+    def launch_threads(self, func, *args):
+        threads = []
+        for t in range(self.num_threads):
+            thread = Thread(target=func, args=(*args,))
+            threads.append(thread)
+            thread.start()
+        for t in threads:
+            t.join()
+
+
+    def explore_parallel(self, clusters, ants):
+        for ant in range(ants):
             for i, point in enumerate(self.data):
                 probabilities = self.calculate_probabilities(i, clusters)
                 cluster = np.random.choice(np.arange(self.n_clusters), p=probabilities)
                 clusters[i] = cluster
-        return clusters
+
 
     def calculate_probabilities(self, i, clusters):
         # Calculate probabilities for selecting clusters in the exploration phase

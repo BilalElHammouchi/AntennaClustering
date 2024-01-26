@@ -8,6 +8,7 @@ from sklearn.manifold import TSNE
 from sklearn.preprocessing import MinMaxScaler
 from time import time
 from sklearn.preprocessing import LabelEncoder
+import numpy as np
 
 from ant_clustering import AntCluster
 
@@ -26,13 +27,27 @@ def return_tnse(scaled_df):
     return transformed_tsne
 
 
-st.title("AntennaClustering")
-
+st.title("AntennaClusteringCSV")
+st.image('ants.jpg')
 dataset = st.file_uploader("Choose a dataset", type='csv')
 
+def highlight_columns(s, columns_to_highlight, color='yellow'):
+    """
+    Highlight specified columns in a DataFrame with a custom color.
+    """
+    if s.name in columns_to_highlight:
+        return ['background-color: {}'.format(color)] * len(s)
+    else:
+        return [''] * len(s)
+
 if dataset is not None:
+    np.random.seed(100)
+    random.seed(100)
     df = pd.read_csv(dataset)
+    data_size = 200 if len(df) > 200 else len(df)
+    df = df.sample(data_size) 
     df = df.dropna()
+    original_df = df.copy(deep=True)
     st.markdown(f"<h2 style='text-align: center;'>Dataset {dataset.name}</h2>", unsafe_allow_html=True)
     st.subheader(f"Number of columns: {df.shape[1]}")
     st.subheader(f"Number of rows: {df.shape[0]}")
@@ -62,8 +77,7 @@ if dataset is not None:
     scaler = MinMaxScaler()
     scaled_df = scaler.fit_transform(df)
     on = st.toggle('Reduce to 2 dimensions for visualization', value=True)
-    random.seed(100)
-    random_columns = [df.columns[random.randint(0, len(df.columns))] for i in range(2)]
+    random_columns = [df.columns[random.randint(0, len(df.columns)-1)] for i in range(2)]
     num_sample = 200 if scaled_df.shape[0] > 200 else scaled_df.shape[0]
     transformed_tsne = return_tnse(scaled_df)
     if on:
@@ -82,7 +96,6 @@ if dataset is not None:
             fig = px.scatter(df, x=options[0], y=options[1])
             fig.update_layout(margin=dict(l=20, r=20, t=30, b=0),)
             st.plotly_chart(fig, use_container_width=True)
-            #st.scatter_chart(df.sample(n=num_sample), x=options[0], y=options[1], width=50)
     clusters = st.slider('How many clusters?', 2, 20, 3)
     ants = st.slider('How many ants?', 1, 20, 10)
     iterations = st.slider('How many iterations?', 16, 1000, 100)
@@ -129,3 +142,6 @@ if dataset is not None:
         st.markdown(f"<h3 style='text-align: center;'>The Ants have finished!</h3>", unsafe_allow_html=True)
         st.markdown(f"<h3 style='text-align: center;'>The algorithm took {int(end-start)} seconds!</h3>", unsafe_allow_html=True)
         #st.scatter_chart(transformed_tsne.sample(n=num_sample), x='x', y='y', width=50, color=tuple(colors))
+        original_df['class'] = transformed_tsne['color']
+        styled_df = original_df.style.apply(lambda x: highlight_columns(x, 'class', color='gray'), axis=0)
+        st.dataframe(styled_df)
